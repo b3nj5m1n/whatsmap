@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Whatsapp Chat Heatmap</title>
+        <meta charset="utf-8">
+        <!-- <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Your name">
+<meta name="description" content="Brief description">
+<meta property="og:title" content="Your Page Title">
+<meta property="og:description" content="Brief description">
+<meta property="og:image" content="/some-image.png">
+<meta property="og:url" content="/this-page.html">
+<meta property="og:site_name" content="Your Site Name">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image:alt" content="image description">
+<link href="style.css" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"> -->
+        <script src="./assets/d3.v7.min.js"></script>
+        <script src="./assets/cal-heatmap.min.js"></script>
+        <link rel="stylesheet" href="./assets/cal-heatmap.css">
+        <script src="./assets/popper.min.js"></script>
+        <script src="./assets/Tooltip.min.js"></script>
+        <script src="./assets/LegendLite.min.js"></script>
+        <script src="./assets/CalendarLabel.min.js"></script>
+    </head>
+    <body>
+        <div style="padding: 5vh; display: flex; justify-content: center; align-items: center; height: 10vh; font-family: 'Arial', sans-serif;">
+            <h1 style="font-size: 48px; font-family: 'Courier New', monospace;" id="header"></h1>
+        </div>
+        <div style="position: absolute; bottom: 1vh">
+            <input type="file" id="file-input" />
+        </div>
+
+        <div style="margin: 5vh; padding: 5vh; display: flex; justify-content: center; align-items: center; height: 50vh; font-family: 'Arial', sans-serif;">
+            <div id="cal-heatmap"></div>
+        </div>
+
+        <script type="text/javascript">
+            function readSingleFile(e) {
+              var file = e.target.files[0];
+              if (!file) {
+                return;
+              }
+              var reader = new FileReader();
+              reader.onload = function(e) {
+                var contents = e.target.result;
+                process_texts(contents);
+              };
+              reader.readAsText(file);
+            }
+            function process_texts(contents) {
+                // No idea wtf is going on here but it works
+                window.ending_date = new Date(0);
+                window.starting_date = new Date(8.64e15);
+                try {
+                    window.cal.destroy()
+                } catch (error) {
+
+                }
+                dates = {}
+                const lines = contents.split("\n");
+                lines.pop();
+                lines.forEach(line => {
+                    try {
+                        line = line.trim()
+                        const dateStr = line.split(' - ')[0];
+                        const datePart = dateStr.split(', ')[0];
+                        const [day, month, year] = datePart.split('/');
+                        // const [hours, minutes] = timePart.split(':');
+                        const date = new Date(year, month - 1, day, 0, 0);
+                        // console.log(dateStr,date)
+                        if (!(date in dates)) {
+                            dates[date] = 1
+                        }
+                        dates[date] += 1
+                    } catch (error) {
+                        console.log(error)
+                    }
+                })
+                window.the_data = new Array();
+                for (var key in dates) {
+                    if (dates.hasOwnProperty(key)) {
+                        const date = new Date(key);
+                        window.the_data.push({
+                            date: date,
+                            value: dates[key]
+                        })
+                        <!-- console.log(date) -->
+                        if ( window.starting_date > date ) {
+                            window.starting_date = date
+                        }
+                        if ( window.ending_date < date ) {
+                            window.ending_date = date
+                        }
+                    }
+                }
+                console.log(window.starting_date, window.ending_date);
+                window.years = yearsBetween(window.starting_date, window.ending_date) + 1
+                console.log(window.years)
+                document.getElementById("header").innerText = window.years + " years"
+                repaint();
+            }
+            document.getElementById('file-input')
+              .addEventListener('change', readSingleFile, false);
+
+            const weekDaysTemplate = DateHelper => ({
+              name: 'weekday',
+              parent: 'day',
+              rowsCount: () => 5,
+              columnsCount: () => 5,
+              mapping: (startTimestamp, endTimestamp) => {
+                let weekNumber = 0;
+                let x = -1;
+
+                return DateHelper.intervals(
+                  'day',
+                  startTimestamp,
+                  DateHelper.date(endTimestamp)
+                )
+                  .map(ts => {
+                    const date = DateHelper.date(ts);
+
+                    if (weekNumber !== date.week()) {
+                      weekNumber = date.week();
+                      x += 1;
+                    }
+
+                    if (date.format('d') === '0' || date.format('d') === '6') {
+                      return null;
+                    }
+
+                    return {
+                      t: ts,
+                      x,
+                      y: date.format('d') - 1,
+                    };
+                  })
+                  .filter(n => n !== null);
+              },
+            });
+
+            function yearsBetween(date1, date2) {
+                // Extract the components of each date
+                let year1 = date1.getFullYear();
+                let month1 = date1.getMonth();
+                let day1 = date1.getDate();
+
+                let year2 = date2.getFullYear();
+                let month2 = date2.getMonth();
+                let day2 = date2.getDate();
+
+                let yearDifference = year2 - year1;
+
+                if (month2 < month1 || (month2 === month1 && day2 < day1)) {
+                    yearDifference--;
+                }
+
+                return yearDifference;
+            }
+
+            function repaint() {
+                window.cal = new CalHeatmap();
+
+                window.cal.addTemplates(weekDaysTemplate);
+
+                window.cal.paint(
+                    {
+                        data: {
+                            source: window.the_data,
+                            type: 'json',
+                            x: 'date',
+                            y: 'value',
+                            defaultValue: 0,
+                        },
+                        date: { start: window.starting_date },
+                        domain: {
+                            type: "year",
+                            label: {
+                                position: "top"
+                            }
+                        },
+                        verticalOrientation: true,
+                        subDomain: {
+                            type: "day"
+                        },
+                        range: window.years + 1,
+                        cellSize: 20,
+                        domainGutter: 10,
+                        scale: {
+                            color: {
+                                type: 'threshold',
+                                <!-- range: ['#ff0000', '#00ff00', '#0000ff'], -->
+                                <!-- domain: [0, 500], -->
+                                scheme: 'Oranges',
+                                type: 'symlog',
+                                domain: [0,1000],
+                            },
+                        }
+                    },
+                    [
+                        [
+                          Tooltip,
+                          {
+                            text: function (date, value, dayjsDate) {
+                              return (
+                                (value ? value : 'No') +
+                                ' texts on ' +
+                                dayjsDate.format('dddd, MMMM D, YYYY')
+                              );
+                            },
+                          },
+                        ],
+                        [
+                          LegendLite,
+                          {
+                            includeBlank: true,
+                            itemSelector: '#ex-ghDay-legend',
+                            radius: 2,
+                            width: 11,
+                            height: 11,
+                            gutter: 4,
+                          },
+                        ],
+                        <!-- [ -->
+                          <!-- CalendarLabel, -->
+                          <!-- { -->
+                            <!-- width: 30, -->
+                            <!-- textAlign: 'start', -->
+                            <!-- text: () => dayjs.weekdaysShort().map((d, i) => (i % 2 == 0 ? '' : d)), -->
+                            <!-- padding: [25, 0, 0, 0], -->
+                          <!-- }, -->
+                        <!-- ], -->
+                      ]
+                );
+            }
+        </script>
+
+    </body>
+</html>
